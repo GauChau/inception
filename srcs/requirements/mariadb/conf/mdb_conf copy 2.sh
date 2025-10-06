@@ -14,17 +14,24 @@ mysqld_safe --datadir=/var/lib/mysql &
 
 #echo "Waiting for MariaDB to be 1111"
 # Attendre que le serveur soit dispo
-until mysqladmin ping --silent; do
+until mysqladmin ping -uroot -p"${MYSQL_ROOT_PASSWORD}" --silent; do
     echo ping res: $?
     echo "Waiting for MariaDB to be ready..."
     sleep 1
 done
 
 # Sécuriser et créer la base + utilisateur
-if ! mysql -e "USE ${MYSQL_DB}"; then
+if ! mysql  -p"${MYSQL_ROOT_PASSWORD}" -e "USE ${MYSQL_DB}"; then
     echo "Setting up MariaDB..."
-    mysql<<END
+    mysql  -p"${MYSQL_ROOT_PASSWORD}" <<END
+    -- Set root password and disable remote root login
+    ALTER USER 'root'@'localhost' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}';
+    -- DELETE FROM mysql.user WHERE User=''; -- Remove anonymous users
+    -- DROP DATABASE IF EXISTS test; -- Remove test database
     FLUSH PRIVILEGES;
+
+    -- Allow root to connect from any host
+    GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}' WITH GRANT OPTION;
 
     -- Create initial database and user with privileges
     CREATE DATABASE IF NOT EXISTS ${MYSQL_DB};
@@ -34,8 +41,7 @@ if ! mysql -e "USE ${MYSQL_DB}"; then
 END
 fi
 # Arrêter MariaDB (il sera relancé par CMD)
-mysqladmin shutdown
-
+mysqladmin -uroot -p"${MYSQL_ROOT_PASSWORD}" shutdown
 
 # Lancer le vrai processus (mysqld)
 exec "$@"
